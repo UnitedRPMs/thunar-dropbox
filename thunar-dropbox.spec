@@ -1,3 +1,5 @@
+%global debug_package %{nil}
+
 %global gitdate 20170703
 %global commit0 61ba51bcf0b2c1b0d2b3a27b4c24d71b82ff579d
 %global shortcommit0 %(c=%{commit0}; echo ${c:0:7})
