@@ -1,0 +1,156 @@
+From 2da13dc73c56cea4a1d3de19c4917467954f985d Mon Sep 17 00:00:00 2001
+From: Ted Alff <twa022@gmail.com>
+Date: Sun, 19 Nov 2017 00:33:18 -0500
+Subject: [PATCH] Port to thunarx-3
+
+---
+ README.md                   |  2 +-
+ src/dropbox-communication.c |  1 +
+ src/tdp-provider.c          | 31 ++++++++++++++++---------------
+ wscript                     |  4 ++--
+ 4 files changed, 20 insertions(+), 18 deletions(-)
+
+diff --git a/README.md b/README.md
+index 4ccda59..d33dce8 100644
+--- a/README.md
++++ b/README.md
+@@ -8,7 +8,7 @@ install that separately.
+ 
+ ### Dependencies
+ Depending on your distribution you might have to install 
+-`libthunarx-2`.
++`libthunarx-3`.
+ 
+ ### Installation from sources
+     python2 ./waf configure
+diff --git a/src/dropbox-communication.c b/src/dropbox-communication.c
+index 758d701..debdfdc 100644
+--- a/src/dropbox-communication.c
++++ b/src/dropbox-communication.c
+@@ -27,6 +27,7 @@
+ #include <sys/un.h>
+ #include <fcntl.h>
+ #include <errno.h>
++#include <unistd.h>
+ 
+ //##############################################################################
+ // Exported functions
+diff --git a/src/tdp-provider.c b/src/tdp-provider.c
+index 513a78f..7732874 100644
+--- a/src/tdp-provider.c
++++ b/src/tdp-provider.c
+@@ -22,9 +22,12 @@
+ //##############################################################################
+ #include <unistd.h>
+ #include <stdlib.h>
++#include <glib.h>
++#include <glib/gprintf.h>
+ #include <gio/gio.h>
+ 
+ #include "tdp-provider.h"
++#include "dropbox-communication.h"
+ 
+ //##############################################################################
+ // Function prototypes
+@@ -69,7 +72,7 @@ static void tdp_provider_class_init(TdpProviderClass * klass)
+ 
+ static void tdp_provider_menu_provider_init(ThunarxMenuProviderIface * iface)
+ {
+-	iface->get_file_actions = tdp_provider_get_file_actions;
++	iface->get_file_menu_items = tdp_provider_get_file_actions;
+ }
+ 
+ static void tdp_provider_init(TdpProvider * tdp_provider)
+@@ -84,7 +87,7 @@ static void tdp_provider_finalize(GObject * object)
+ 	(*G_OBJECT_CLASS(tdp_provider_parent_class)->finalize)(object);
+ }
+ 
+-static void tdp_callback(GtkAction * action, gpointer data)
++static void tdp_callback(ThunarxMenuItem * item, gpointer data)
+ {
+ 	GList * actioninfo = (GList*)data;
+ 	gchar * verb = NULL;
+@@ -113,7 +116,7 @@ static void tdp_closure_destroy_notify(gpointer data, GClosure * closure)
+ 
+ static GList * add_action(GList * list, GList * filelist, gchar * str)
+ {
+-	GtkAction * action = NULL;
++	ThunarxMenuItem * item = NULL;
+ 	gchar ** argval;
+ 	guint len;
+ 	GList * actioninfo = NULL;
+@@ -132,12 +135,10 @@ static GList * add_action(GList * list, GList * filelist, gchar * str)
+ 		gchar unique_name[128];
+ 		g_sprintf(unique_name, "Tdp::%s", argval[2]);
+ 
+-		action = g_object_new(GTK_TYPE_ACTION,
+-			"name", unique_name,
+-			"label", argval[0],
+-			"tooltip", argval[1],
+-			"icon-name", "thunar-dropbox",
+-			 NULL);
++		item = thunarx_menu_item_new(unique_name,
++			argval[0],
++			argval[1],
++			"thunar-dropbox");
+ 
+ 		actioninfo = g_list_prepend(actioninfo, g_strdup(argval[2]));
+ 
+@@ -146,13 +147,13 @@ static GList * add_action(GList * list, GList * filelist, gchar * str)
+ 			(gpointer)actioninfo,
+ 			tdp_closure_destroy_notify);
+ 
+-		g_signal_connect_closure(G_OBJECT(action), "activate", closure, TRUE);
++		g_signal_connect_closure(G_OBJECT(item), "activate", closure, TRUE);
+ 	}
+ 
+ 	g_strfreev(argval);
+ 
+-	if(action != NULL)
+-		list = g_list_append(list, action);
++	if(item != NULL)
++		list = g_list_append(list, item);
+ 	return list;
+ }
+ 
+@@ -215,15 +216,15 @@ static GList * tdp_provider_get_file_actions(
+ 
+ 		if(status == G_IO_STATUS_NORMAL)
+ 		{
+-			if(strcmp(line, "done\n") == 0)
++			if(g_strcmp0(line, "done\n") == 0)
+ 			{
+ 				g_free(line);
+ 				break;
+ 			}
+-			else if(strcmp(line, "notok\n") == 0)
++			else if(g_strcmp0(line, "notok\n") == 0)
+ 			{
+ 			}
+-			else if(strcmp(line, "ok\n") == 0)
++			else if(g_strcmp0(line, "ok\n") == 0)
+ 			{
+ 			}
+ 			else
+diff --git a/wscript b/wscript
+index fc65dc0..dde7a27 100755
+--- a/wscript
++++ b/wscript
+@@ -17,7 +17,7 @@ def set_options(opt):
+ 
+ def configure(conf):
+ 	conf.check_tool('compiler_cc')
+-	conf.check_cfg(package='thunarx-2', uselib_store='THUNARX', mandatory=True, args='--cflags --libs')
++	conf.check_cfg(package='thunarx-3', uselib_store='THUNARX', mandatory=True, args='--cflags --libs')
+ 	conf.check_cfg(package='gio-2.0', uselib_store='GIO', mandatory=True, args='--cflags --libs')
+ 	conf.env.LIBDIR= Options.options.libdir
+ 
+@@ -29,7 +29,7 @@ def build(bld):
+ 	prog.includes = 'src'
+ 	prog.find_sources_in_dirs('src')
+ 	bld.install_files ('${PREFIX}/share/icons/hicolor/16x16/apps', 'data/icons/hicolor/16x16/apps/thunar-dropbox.png')
+-	bld.install_as (bld.env.LIBDIR + '/thunarx-2/thunar-dropbox.so', 'libthunar-dropbox.so', chmod=0755)
++	bld.install_as (bld.env.LIBDIR + '/thunarx-3/thunar-dropbox.so', 'libthunar-dropbox.so', chmod=0755)
+ 
+ def shutdown():
+ 	if Options.commands['install'] or Options.commands['uninstall']:
