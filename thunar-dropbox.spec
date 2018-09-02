@@ -21,7 +21,6 @@ BuildRequires:  binutils
 BuildRequires: 	Thunar-devel
 BuildRequires:	waf
 BuildRequires:  gcc-c++ 
-BuildRequires:	pkgconfig(thunarx-3)
 
 Requires: hicolor-icon-theme
 Requires: Thunar
